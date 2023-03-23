@@ -8,10 +8,11 @@ import forex.programs._
 import org.http4s._
 import org.http4s.implicits._
 import org.http4s.server.middleware.{ AutoSlash, Timeout }
+import sttp.client3.SttpBackend
 
-class Module[F[_]: Concurrent: Timer](config: ApplicationConfig) {
+class Module[F[_]: Concurrent: Timer](config: ApplicationConfig, backend: SttpBackend[F, _]) {
 
-  private val ratesService: RatesService[F] = RatesServices.live[F](config.oneFrame)
+  private val ratesService: RatesService[F] = RatesServices.live[F](config.oneFrame, backend)
 
   private val ratesProgram: RatesProgram[F] = RatesProgram[F](ratesService)
 

@@ -7,7 +7,6 @@ import forex.domain._
 import io.circe._
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.semiauto.deriveConfiguredEncoder
-import java.time.OffsetDateTime
 
 object Protocol {
 
@@ -23,15 +22,6 @@ object Protocol {
       to: Currency,
       price: Price,
       timestamp: Timestamp
-  )
-
-  final case class OneFrameResponsePayload(
-      from: String,
-      to: String,
-      bid: BigDecimal,
-      ask: BigDecimal,
-      price: BigDecimal,
-      time_stamp: OffsetDateTime
   )
 
   implicit val currencyEncoder: Encoder[Currency] =

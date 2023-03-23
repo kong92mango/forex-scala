@@ -3,7 +3,7 @@ import Dependencies._
 name := "forex"
 version := "1.0.1"
 
-scalaVersion := "2.13.5"
+scalaVersion := "2.13.10"
 scalacOptions ++= Seq(
   "-deprecation", // Emit warning and location for usages of deprecated APIs.
   "-encoding",
@@ -54,6 +54,10 @@ libraryDependencies ++= Seq(
   Libraries.cats,
   Libraries.catsEffect,
   Libraries.fs2,
+  Libraries.sttpCore,
+  Libraries.sttpFs2Ce2,
+  Libraries.sttpArmeria,
+  Libraries.sttpCirce,
   Libraries.http4sDsl,
   Libraries.http4sServer,
   Libraries.http4sCirce,
