@@ -39,4 +39,10 @@ object Currency {
     case "USD" => USD
   }
 
+  val allCurrencies: List[Currency] = List(AUD, CAD, CHF, EUR, GBP, NZD, JPY, SGD, USD)
+
+  def allPairs: List[(Currency, Currency)] = for {
+    c1 <- allCurrencies
+    c2 <- allCurrencies.filter(e => c1 != e)
+  } yield (c1, c2)
 }
