@@ -36,7 +36,7 @@ class OneFrameLive[F[_]: Async](oneFrameConfig: OneFrameConfig, backend: SttpBac
 
   var pairPriceDic: Map[Rate.Pair, Price] = Map.empty[Rate.Pair, Price]
 
-  var lastRanTime = Timestamp(OffsetDateTime.now().minusDays(1))
+  var lastSyncTime = Timestamp(OffsetDateTime.now().minusDays(1))
 
   val pairsArray = Currency.allPairs.map { case (c1, c2) =>
     s"${c1}${c2}"
@@ -52,36 +52,40 @@ class OneFrameLive[F[_]: Async](oneFrameConfig: OneFrameConfig, backend: SttpBac
       .response(asJson[List[OneFrameResponsePayload]])
   }
 
-  private def getLiveRates(): F[Error Either Map[Rate.Pair, Rate]] = for {
+  private def getLiveRates(): F[Error Either Map[Rate.Pair, Price]] = for {
     response <- backend.send(oneFrameRequest)
     body = response.body.leftMap(e => Error.OneFrameLookupFailed(e.toString()))
-    allRates = body.flatMap { rate =>
+    allRates = body.flatMap { rate => {
                  val (left, right) = rate.map(_.toRate).partitionMap(identity)
-                 left.headOption
-                   .toLeft(right.map(r => (r.pair, r)).toMap)
+                 left.headOption.toLeft(right.map(r => (r.pair, r.price)).toMap)
+                 }
                }
   } yield allRates
 
   private def shouldGetLiveRate(): Boolean = {
-    return (Duration.between(OffsetDateTime.now(), lastRanTime.value).compareTo(Duration.ofMillis(oneFrameConfig.secondsBetweenCall.toMillis)) <= 0)
+    (Duration.between(OffsetDateTime.now(), lastSyncTime.value).compareTo(Duration.ofMillis(oneFrameConfig.secondsBetweenCall.toMillis)) <= 0) 
+    //Using ofMillis to convert between Duration and FiniteDuration
   }
 
   private def getPrice(pair: Rate.Pair): BigDecimal = {
     if(shouldGetLiveRate()){
       val result = getLiveRates()
       result.map {
-      case Right(latestRates) =>
-      latestRates.foreach { case (pair, rate) =>
-        pairPriceDic = pairPriceDic + (pair -> rate.price)
+      case Right(latestRatesMap) => {
+      pairPriceDic = latestRatesMap
+      lastSyncTime = Timestamp.now // lastSyncTime is only updated when we actually make an API call
       }
-      lastRanTime = Timestamp(OffsetDateTime.now())
       case Left(error) =>
         println(s"Error: $error")
       }
     }
-    return pairPriceDic(pair).value
+    pairPriceDic(pair).value
+  }
+
+  private def getRateTime(): Timestamp = {
+    (if (shouldGetLiveRate()) Timestamp.now else lastSyncTime)
   }
 
   override def get(pair: Rate.Pair): F[Error Either Rate] =
-    Rate(pair, Price(getPrice(pair)), Timestamp.now).asRight[Error].pure[F]    
+    Rate(pair, Price(getPrice(pair)), getRateTime()).asRight[Error].pure[F]    
 }
