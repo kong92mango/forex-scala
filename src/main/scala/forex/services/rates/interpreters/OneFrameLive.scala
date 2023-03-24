@@ -12,6 +12,7 @@ import forex.services.rates.errors.Error
 import forex.config.OneFrameConfig
 import cats.implicits._
 import cats.effect.Async
+import java.time.Duration
 
 case class OneFrameResponsePayload(
     from: String,
@@ -32,6 +33,10 @@ case class OneFrameResponsePayload(
 }
 
 class OneFrameLive[F[_]: Async](oneFrameConfig: OneFrameConfig, backend: SttpBackend[F, _])extends Algebra[F] {
+
+  var pairPriceDic: Map[Rate.Pair, Price] = Map.empty[Rate.Pair, Price]
+
+  var lastRanTime = Timestamp(OffsetDateTime.now().minusDays(1))
 
   val pairsArray = Currency.allPairs.map { case (c1, c2) =>
     s"${c1}${c2}"
@@ -57,17 +62,26 @@ class OneFrameLive[F[_]: Async](oneFrameConfig: OneFrameConfig, backend: SttpBac
                }
   } yield allRates
 
-val result: F[Error Either Map[Rate.Pair, Rate]] = getLiveRates()
+  private def shouldGetLiveRate(): Boolean = {
+    return (Duration.between(OffsetDateTime.now(), lastRanTime.value).compareTo(Duration.ofMillis(oneFrameConfig.secondsBetweenCall.toMillis)) <= 0)
+  }
 
-  println("testing will start")
-
-result.map {
-  case Right(allRates) =>
-    println(s"Live rates: $allRates")
-  case Left(error) =>
-    println(s"Error: $error")
-}
+  private def getPrice(pair: Rate.Pair): BigDecimal = {
+    if(shouldGetLiveRate()){
+      val result = getLiveRates()
+      result.map {
+      case Right(latestRates) =>
+      latestRates.foreach { case (pair, rate) =>
+        pairPriceDic = pairPriceDic + (pair -> rate.price)
+      }
+      lastRanTime = Timestamp(OffsetDateTime.now())
+      case Left(error) =>
+        println(s"Error: $error")
+      }
+    }
+    return pairPriceDic(pair).value
+  }
 
   override def get(pair: Rate.Pair): F[Error Either Rate] =
-    Rate(pair, Price(BigDecimal(100)), Timestamp.now).asRight[Error].pure[F]    
+    Rate(pair, Price(getPrice(pair)), Timestamp.now).asRight[Error].pure[F]    
 }
